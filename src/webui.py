@@ -42,12 +42,16 @@ class Controller:
             self.history.append(previous)
             json_write(self.state_dir / 'jobs.json', self.history[-15:])
             json_write(self.state_dir / 'current-job.json', previous)
-        self.settings = site.read_json(self.state_dir / 'settings.json', {'output': str(default_output or ROOT / 'exports/account'), 'libraries': []})
+        stored = site.read_json(self.state_dir / 'settings.json', None)
+        discover_default = stored is None or 'libraries' not in stored
+        self.settings = stored if stored is not None else {'output': str(default_output or ROOT / 'exports/account'), 'libraries': []}
+        self.settings.setdefault('libraries', [])
+        self.restore_locations()
         self.account = site.read_json(self.state_dir / 'session.json', None)
         self.auth_detail = '已保存登录会话' if self.token_path.exists() else '尚未登录'
-        # Previously registered real output becomes a library without network work.
+        # Discover an existing default backup once; removing it stays persistent.
         initial = Path(self.settings['output']).expanduser()
-        if (initial / 'archive.sqlite3').is_file() or (initial / '_data/archive.sqlite3').is_file():
+        if discover_default and self.has_backup(initial):
             self.register(initial)
         self.persist_settings()
 
@@ -58,11 +62,45 @@ class Controller:
     def persist_settings(self):
         json_write(self.state_dir / 'settings.json', self.settings)
 
+    def restore_locations(self):
+        """Keep project-owned locations usable after moving the whole checkout."""
+        project = ROOT.resolve()
+        output = Path(self.settings['output']).expanduser().resolve()
+        recorded = self.settings.get('project_root')
+        previous = Path(recorded).expanduser().resolve() if recorded else None
+        # Older settings have no root marker. Recognize their built-in exports
+        # location only when the old project vanished and its backup moved here.
+        if previous is None and output.parent.name == 'exports':
+            candidate = project / 'exports' / output.name
+            if not output.parent.parent.exists() and self.has_backup(candidate):
+                previous = output.parent.parent
+        if previous is not None and previous != project:
+            def relocated(value):
+                try:
+                    return project / Path(value).expanduser().resolve().relative_to(previous)
+                except ValueError:
+                    return None
+            destination = relocated(output)
+            if destination is not None:
+                self.settings['output'] = str(destination)
+            for library in self.settings['libraries']:
+                destination = relocated(library['path'])
+                if destination is not None and self.has_backup(destination):
+                    library['path'] = str(destination)
+        self.settings['project_root'] = str(project)
+
+    @staticmethod
+    def has_backup(root):
+        return (root / 'archive.sqlite3').is_file() or (root / '_data/archive.sqlite3').is_file()
+
     def active(self):
         return self.worker is not None and self.worker.is_alive()
 
     def register(self, root):
         root = site.output_path(root)
+        for library in self.settings['libraries']:
+            if library['path'] == str(root):
+                return library['id']
         ident = __import__('hashlib').sha256(str(root).encode()).hexdigest()[:20]
         if not any(x['id'] == ident for x in self.settings['libraries']):
             self.settings['libraries'].append({'id': ident, 'path': str(root)})
@@ -74,6 +112,14 @@ class Controller:
             if lib['id'] == ident:
                 return lib
         raise ValueError('备份目录未登记。')
+
+    def remove_library(self, ident):
+        with self.lock:
+            self.library(ident)
+            if self.active() and self.job['library'] == ident:
+                raise ValueError('该备份正在执行任务，请先停止任务。')
+            self.settings['libraries'] = [lib for lib in self.settings['libraries'] if lib['id'] != ident]
+            self.persist_settings()
 
     def status(self):
         with self.lock:
@@ -258,7 +304,11 @@ def make_server(port=8769, controller=None, bind='127.0.0.1'):
                 if path == '/api/status':
                     return self.send(200, controller.status())
                 if path == '/api/folders':
-                    folder = Path(parse_qs(parsed.query).get('path', [str(Path.home())])[0]).expanduser().resolve()
+                    query = parse_qs(parsed.query)
+                    folder = Path(query.get('path', [str(Path.home())])[0]).expanduser().resolve()
+                    if query.get('fallback') == ['1']:
+                        while not folder.is_dir() and folder != folder.parent:
+                            folder = folder.parent
                     if not folder.is_dir():
                         raise ValueError('文件夹不存在。')
                     dirs = sorted(p.name for p in folder.iterdir() if p.is_dir() and not p.name.startswith('.') and not p.is_symlink())
@@ -338,6 +388,8 @@ def make_server(port=8769, controller=None, bind='127.0.0.1'):
                         raise ValueError('目录中没有 Replive 备份数据库。')
                     with controller.lock:
                         controller.register(root)
+                elif self.path == '/api/libraries/remove':
+                    controller.remove_library(values['library'])
                 elif self.path == '/api/jobs':
                     controller.start(values.get('kind'), values.get('output'), values.get('library'))
                     with controller.lock:

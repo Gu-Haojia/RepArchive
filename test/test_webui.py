@@ -5,6 +5,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 import webui
 import archive_site as site
@@ -64,6 +65,74 @@ class WebUITest(unittest.TestCase):
             self.request('/api/jobs/cancel','POST');self.controller.worker.join(5)
         self.assertEqual(self.controller.job['state'],'cancelled')
         self.assertTrue((self.root/'_data/archive.sqlite3').is_file())
+
+    def test_folder_picker_recovers_missing_initial_path_and_imports_moved_backup(self):
+        previous = Path(self.temp.name) / 'deleted-project/exports'
+        code, _, body = self.request('/api/folders?' + urlencode({'path': str(previous), 'fallback': '1'}))
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)['path'], str(Path(self.temp.name).resolve()))
+        # Explicit navigation must still explain a mistyped path.
+        self.assertEqual(self.request('/api/folders?' + urlencode({'path': str(previous)}))[0], 400)
+        moved = (Path(self.temp.name) / '移動した backup').resolve()
+        self.root.rename(moved)
+        code, _, _ = self.request('/api/libraries/import', 'POST', {'path': str(moved)})
+        self.assertEqual(code, 200)
+        library = next(x for x in self.controller.settings['libraries'] if x['path'] == str(moved))
+        self.assertEqual(self.request('/preview/' + library['id'] + '/index.html')[0], 200)
+        self.assertTrue(site.verify(moved)['ok'])
+
+    def test_legacy_project_move_relocates_default_and_preserves_library_identity(self):
+        old = (Path(self.temp.name) / 'old-project').resolve()
+        backup = old / 'exports/account';fixture(backup);site.generate(backup)
+        private = old / '.private'
+        core.json_write(private / 'settings.json', {'output': str(backup), 'libraries': [{'id': 'existing-link', 'path': str(backup)}]})
+        moved = (Path(self.temp.name) / 'new project 日本語').resolve()
+        old.rename(moved)
+        with patch.object(webui, 'ROOT', moved):
+            controller = webui.Controller(state_dir=moved / '.private')
+            restored = webui.Controller(state_dir=moved / '.private')
+        self.assertEqual(controller.settings['output'], str(moved / 'exports/account'))
+        self.assertEqual(controller.settings['libraries'], [{'id': 'existing-link', 'path': str(moved / 'exports/account')}])
+        self.assertEqual(restored.settings, controller.settings)
+        self.assertEqual(controller.register(moved / 'exports/account'), 'existing-link')
+
+    def test_project_move_relocates_custom_internal_paths_but_keeps_external_paths(self):
+        old = (Path(self.temp.name) / 'old-custom-project').resolve()
+        backup = old / 'custom/my backup';fixture(backup);site.generate(backup)
+        external = str(self.root.resolve())
+        missing_external = str((Path(self.temp.name) / 'external-missing').resolve())
+        settings = {'project_root': str(old), 'output': str(backup), 'libraries': [
+            {'id': 'internal', 'path': str(backup)}, {'id': 'external', 'path': external},
+            {'id': 'missing', 'path': missing_external}]}
+        core.json_write(old / '.private/settings.json', settings)
+        moved = (Path(self.temp.name) / 'moved-project').resolve();old.rename(moved)
+        with patch.object(webui, 'ROOT', moved):
+            controller = webui.Controller(state_dir=moved / '.private')
+        self.assertEqual(controller.settings['project_root'], str(moved))
+        self.assertEqual(controller.settings['output'], str(moved / 'custom/my backup'))
+        self.assertEqual(controller.library('internal')['path'], str(moved / 'custom/my backup'))
+        self.assertEqual(controller.library('external')['path'], external)
+        self.assertEqual(controller.library('missing')['path'], missing_external)
+
+    def test_remove_library_persists_and_preserves_files_and_running_job(self):
+        library = self.controller.settings['libraries'][0]['id']
+        before = site.read_json(self.root / site.MARKER)
+        def blocked(root, progress, cancel):cancel.wait(5);core.check_cancel(cancel)
+        with patch.object(site, 'generate', side_effect=blocked):
+            self.controller.start('generate', library=library)
+            self.assertEqual(self.request('/api/libraries/remove', 'POST', {'library': library})[0], 400)
+            self.assertEqual(len(self.controller.settings['libraries']), 1)
+            self.request('/api/jobs/cancel', 'POST');self.controller.worker.join(5)
+        self.assertEqual(self.request('/api/libraries/remove', 'POST', {'library': library})[0], 200)
+        self.assertEqual(self.controller.settings['libraries'], [])
+        restored = webui.Controller(self.root, self.controller.state_dir)
+        self.assertEqual(restored.settings['libraries'], [])
+        self.assertTrue((self.root / '_data/archive.sqlite3').is_file())
+        self.assertEqual(site.read_json(self.root / site.MARKER), before)
+        self.assertTrue(site.verify(self.root)['ok'])
+        # Re-adding restores ordinary preview access without regenerating files.
+        self.assertEqual(self.request('/api/libraries/import', 'POST', {'path': str(self.root)})[0], 200)
+        self.assertEqual(self.request('/preview/' + library + '/index.html')[0], 200)
     def test_sms_login_does_not_start_export_or_persist_phone_otp(self):
         class Phone:
             def send_code(self, country, phone):pass
