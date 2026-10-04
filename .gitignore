@@ -1,0 +1,25 @@
+# Local runtime and generated protocol bindings
+.venv/
+src/generated/
+__pycache__/
+*.py[cod]
+
+# Local accounts, settings and exported content
+.private/
+exports/
+*.har
+*.chls
+*.pcap
+*.pcapng
+*.log
+
+# Development-only material
+reference/
+research/
+dist/
+tools/jadx/
+tools/jadx.zip
+
+# OS files
+.DS_Store
+Thumbs.db

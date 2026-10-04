@@ -1,0 +1,43 @@
+syntax = "proto3";
+package model;
+import "http.proto";
+
+// 原 App 4.8.1 的 Wire adapter 提供字段编号；来源说明见 docs/ATTRIBUTION.md。
+message SignupAsGuestRequest {
+  string country_code = 1;
+  string language_tag = 2;
+  repeated string prefer_genre_ids = 3;
+  string fcm_token = 4;
+  string adjust_tracker = 5;
+}
+message SignupAsGuestResponse {
+  string user_id = 1;
+  string guest_token = 2;
+}
+message SendAuthCodeRequest {
+  string phone_country_code = 1;
+  string mobile_phone_number = 2;
+  bool is_to_register = 3;
+}
+message SendAuthCodeResponse {}
+message VerifyAuthCodeRequest {
+  string phone_country_code = 1;
+  string mobile_phone_number = 2;
+  string auth_code = 3;
+}
+message VerifyAuthCodeResponse {
+  string sms_verify_token = 1;
+}
+message LoginBySMSRequest {
+  string phone_country_code = 1;
+  string mobile_phone_number = 2;
+  string auth_code = 3;
+}
+message LoginBySMSResponse {
+  UserPrivate user = 1;
+  string identity_platform_custom_token = 2;
+  bool is_unretirable = 3;
+  string access_token = 4;
+  string refresh_token = 5;
+  Timestamp access_token_expire_time = 6;
+}

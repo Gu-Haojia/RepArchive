@@ -1,0 +1,14 @@
+syntax = "proto3";
+package model;
+// Field tags retained from nsy_chat_live@69c6d519; runtime no longer needs that checkout.
+message Timestamp { int64 seconds = 1; int64 nanos = 2; }
+message RefreshAccessTokenRequest { string refresh_token = 1; }
+message RefreshAccessTokenResponse { string accessToken = 1; Timestamp accessTokenExpireTime = 2; }
+message UserProfile { string user_id = 1; string unique_id = 2; string display_name = 3; string avatar_url = 4; }
+message UserPrivate { string user_id = 1; string unique_id = 2; string display_name = 3; string profile_image_url = 4; string profile_background_image_url = 40; string sm_profile_image_url = 44; }
+message ChatRoom { string user_id = 1; string chat_room_id = 2; UserProfile user_profile = 3; }
+message ListChatRoomsRequest { int64 max_page_size = 1; }
+message ListChatRoomsResponse { repeated ChatRoom chat_rooms = 1; }
+message ListChatMessagesRequest { string user_id = 1; string chat_room_id = 2; int32 max_page_size = 3; string cursor_chat_message_id = 4; bool backward = 5; }
+message ListChatMessages { string user_id = 1; string chat_room_id = 2; string chat_message_id = 3; UserProfile user_profile = 4; int32 type = 5; string content = 6; string image_url = 7; string video_url = 8; Timestamp timestamp = 100; string time_str = 200; }
+message ListChatMessagesResponse { repeated ListChatMessages messages = 1; string next_page_cursor_message_id = 4; }

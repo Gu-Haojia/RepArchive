@@ -1,0 +1,4 @@
+protobuf==7.36.2
+grpcio-tools==1.84.0
+phonenumbers==9.0.40
+tzdata==2026.5

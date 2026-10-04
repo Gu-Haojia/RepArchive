@@ -1,0 +1,10 @@
+services:
+  reparchive:
+    build: .
+    ports:
+      - "127.0.0.1:8769:8769"
+    volumes:
+      - "./exports:/app/exports"
+      - "./.private/docker:/app/.private"
+    init: true
+    stop_grace_period: 100s

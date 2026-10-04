@@ -1,0 +1,30 @@
+syntax = "proto3";
+package model;
+import "http.proto";
+// nsy_chat_live login/google.go and login/twitter.go retain these wire tags.
+message GetSNSLoginURLRequest {
+  int32 id_provider = 1;
+  string state = 2;
+  string code_challenge = 3;
+  // Original Twitter flow appends this unnamed boolean wire field.
+  bool option4 = 4;
+}
+message GetSNSLoginURLResponse { string login_url = 1; }
+message UserAuthBySNSRequest {
+  int32 id_provider = 1;
+  string oauth_token = 2;
+  string oauth_verifier = 3;
+  string code_verifier = 4;
+  string id_token = 5;
+  string raw_nonce = 6;
+  string access_token = 7;
+}
+message UserAuthBySNSResponse {
+  bool need_signup = 1;
+  string signup_token = 2;
+  UserPrivate user = 3;
+  string access_token = 4;
+  string refresh_token = 5;
+  Timestamp access_token_expire_time = 6;
+  bool is_unretirable = 7;
+}

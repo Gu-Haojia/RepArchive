@@ -1,0 +1,127 @@
+syntax = "proto3";
+package replive_export;
+import "http.proto";
+import "external.proto";
+
+// ChatMessage 的新增字段由 b1/y0 确认；参考项目仅声明了前 8 个字段。
+message ChatMessage {
+  string user_id = 1;
+  string chat_room_id = 2;
+  string chat_message_id = 3;
+  model.UserProfile user_profile = 4;
+  int32 type = 5;
+  string content = 6;
+  string image_url = 7;
+  string video_url = 8;
+  string video_thumbnail_jpeg_url = 9;
+  bool is_replied = 10;
+  model.Timestamp oldest_reply_time = 11;
+  bool is_deleted = 12;
+  int64 video_duration_msec = 13;
+  string video_id = 14;
+  string card_content = 15;
+  string video_thumbnail_gif_url = 16;
+  model.Timestamp timestamp = 100;
+}
+
+// 原 App 4.8.1 的 Wire adapter：kq/mq, sr/vr, js/ls, ip/kp/sw, pg0, i0。
+message Video {
+  string video_id = 1;
+  string user_id = 2;
+  string card_id = 3;
+  string video_url = 4;
+  string thumbnail_url = 5;
+  string thumbnail_gif_url = 6;
+  string subtitles_url = 7;
+  int64 total_video_views = 8;
+  int64 like_count = 9;
+  int64 comment_count = 10;
+  int64 share_count = 11;
+  int64 save_count = 12;
+  bool has_liked = 14;
+  bool has_saved = 15;
+  int64 duration_msec = 16;
+  model.Timestamp reply_start_time = 20;
+  string sharelink_url = 21;
+  model.Timestamp create_time = 100;
+  model.Timestamp update_time = 101;
+}
+message Card {
+  string card_id = 1;
+  string user_id = 2;
+  model.OshiUser sending_user = 3;
+  int64 coin_amount = 4;
+  string content = 6;
+  bool is_official = 7;
+  int64 like_count = 8;
+  bool is_liked = 9;
+  bool sending_user_is_subscribing = 10;
+  model.Timestamp create_time = 100;
+  model.Timestamp update_time = 101;
+}
+message ListOshiVideosRequest {
+  string oshi_id = 1;
+  int64 max_page_size = 2;
+  string page_token = 3;
+}
+message ListOshiVideosResponse {
+  repeated Video videos = 1;
+  map<string, Card> cards = 2;
+  map<string, model.OshiUser> users = 3;
+  string next_page_token = 4;
+}
+message ListRepliedVideosRequest {
+  string user_id = 1;
+  int64 max_page_size = 2;
+  string page_token = 3;
+}
+message ListRepliedVideosResponse {
+  repeated Video videos = 1;
+  string next_page_token = 2;
+  map<string, Card> cards = 3;
+  map<string, model.OshiUser> users = 4;
+}
+message ListSavedVideosRequest {
+  string saving_user_id = 1;
+  int64 max_page_size = 2;
+  string page_token = 3;
+}
+message ListSavedVideosResponse {
+  repeated Video videos = 1;
+  map<string, Card> cards = 2;
+  string next_page_token = 3;
+  map<string, model.OshiUser> users = 4;
+}
+message GetVideoRequest { string user_id = 1; string video_id = 2; }
+message GetVideoResponse { Video video = 1; model.OshiUser user = 2; Card card = 3; }
+message ListCardsRequest {
+  string user_id = 1;
+  int64 max_page_size = 2;
+  string page_token = 3;
+  bool is_fandom_only = 4;
+}
+message ListCardsResponse { repeated Card cards = 1; string next_page_token = 2; }
+message ListMembershipPlanSubscriptionsRequest {
+  int64 max_page_size = 1;
+  string page_token = 2;
+  bool include_purchase_method = 3;
+}
+message MembershipPlanSubscription {
+  string user_id = 1;
+  string membership_plan_id = 2;
+  string subscribe_user_id = 3;
+  model.OshiUser talent = 4;
+  bool canceled = 5;
+  bool expired = 6;
+  bool plan_is_disabled = 7;
+  bool is_internal_user_subscription = 8;
+  bool is_free_subscription = 9;
+  model.Timestamp free_subscription_expire_time = 10;
+  model.Timestamp start_time = 100;
+  model.Timestamp expire_time = 101;
+  int32 purchase_method = 102;
+}
+message ListMembershipPlanSubscriptionsResponse {
+  repeated MembershipPlanSubscription subscriptions = 1;
+  string next_page_token = 2;
+}
