@@ -25,11 +25,13 @@ def setup():
         raise SystemExit('需要 Python 3.10 或更新版本。')
     runtime = ROOT / '.venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     if not runtime.is_file():
+        print('正在创建项目运行环境，请稍候...', flush=True)
         subprocess.run([sys.executable, '-m', 'venv', str(ROOT / '.venv')], check=True)
     requirements = (ROOT / 'requirements.txt').read_bytes()
     stamp = ROOT / '.venv/replive-requirements.sha256'
     digest = hashlib.sha256(requirements).hexdigest()
     if not stamp.exists() or stamp.read_text(encoding='ascii') != digest:
+        print('正在安装或更新项目依赖，请稍候...', flush=True)
         subprocess.run([str(runtime), '-m', 'pip', 'install', '-r', str(ROOT / 'requirements.txt')], check=True)
         stamp.write_text(digest, encoding='ascii')
     generated = SOURCE / 'generated'
