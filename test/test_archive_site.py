@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 from pathlib import Path
@@ -31,6 +32,52 @@ def fixture(root):
 
 
 class ArchiveSiteTest(unittest.TestCase):
+    def test_chat_sender_uses_message_profile_instead_of_room_owner(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / 'backup'
+            fixture(root)
+            db = core.sqlite3.connect(root / 'archive.sqlite3')
+            db.execute('DELETE FROM messages')
+            for index, (identifier, sender_id, sender_name, body) in enumerate([
+                ('incoming', 'author', '日本語 / 名前', 'おすすめを教えて'),
+                ('outgoing', 'account', 'private-account-name', 'おすすめはこちら'),
+                ('another-sender', 'another-user', '別の送信者', '別のメッセージ'),
+                ('legacy', '', '', 'プロフィールなし'),
+                ('unknown', 'unknown-user', '', '名前なしの送信者'),
+            ], 1):
+                value = {'chat_message_id': identifier, 'user_id': 'author',
+                         'type': 1, 'content': body,
+                         'time_jst': f'2026-07-29T17:26:0{index}+09:00'}
+                if sender_id:
+                    value['user_profile'] = {'user_id': sender_id,
+                                             'display_name': sender_name}
+                db.execute('INSERT INTO messages VALUES (?,?,?,?)',
+                           ('room', identifier, index, json.dumps(value)))
+            db.commit();db.close()
+            site.generate(root)
+            path = next(root.glob('人物/*/聊天记录.jsonl'))
+            messages = {m['id']: m for m in map(json.loads, path.read_text(encoding='utf-8').splitlines())}
+            self.assertTrue(messages['outgoing']['outgoing'])
+            self.assertEqual(messages['outgoing']['sender'], 'あなた')
+            self.assertFalse(messages['incoming']['outgoing'])
+            self.assertEqual(messages['incoming']['sender'], '日本語 / 名前')
+            self.assertFalse(messages['another-sender']['outgoing'])
+            self.assertEqual(messages['another-sender']['sender'], '別の送信者')
+            self.assertEqual(messages['another-sender']['senderAvatar'], '')
+            self.assertFalse(messages['legacy']['outgoing'])
+            self.assertEqual(messages['legacy']['sender'], '日本語 / 名前')
+            self.assertEqual(messages['unknown']['sender'], '送信者')
+            self.assertEqual(messages['unknown']['senderAvatar'], '')
+            self.assertNotIn('private-account-name', path.read_text(encoding='utf-8'))
+            markdown = path.with_suffix('.md').read_text(encoding='utf-8')
+            self.assertIn('17:26:02+09:00 · 我', markdown)
+            with path.with_suffix('.csv').open(encoding='utf-8-sig', newline='') as stream:
+                rows = {r['消息ID']: r for r in csv.DictReader(stream)}
+            self.assertEqual(rows['outgoing']['发送方'], '我')
+            self.assertEqual(rows['outgoing']['方向'], '发出')
+            self.assertEqual(rows['incoming']['方向'], '收到')
+            self.assertTrue(site.verify(root)['ok'])
+
     def test_migration_standalone_escaping_hardlinks_custom_directory_and_resume(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / '日本語 #? backup'

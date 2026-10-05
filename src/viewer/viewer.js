@@ -84,11 +84,12 @@
   }
   function filtered(){let list=loaded[activeRoom.id]||[];if(query)list=list.filter(m=>(m.text+' '+m.question).toLowerCase().includes(query.toLowerCase()));if(date)list=list.filter(m=>m.date.slice(0,10)===date);if(mode==='media')list=list.filter(m=>m.image||m.video);return list;}
   function messageNode(m,r){
-    const row=el('article','message-row');row.dataset.message=m.id;row.append(avatar(r.avatar));const bubble=el('div','bubble');if(m.question)bubble.append(el('p','question',m.question));if(m.text)bubble.append(el('p','',m.text));
+    const outgoing=m.outgoing===true,sender=m.sender||(outgoing?'あなた':r.name);
+    const row=el('article',outgoing?'message-row outgoing':'message-row');row.dataset.message=m.id;row.setAttribute('aria-label',sender+'のメッセージ');if(!outgoing)row.append(avatar(m.senderAvatar===undefined?r.avatar:m.senderAvatar));const bubble=el('div','bubble');if(!outgoing&&sender!==r.name)bubble.append(el('div','message-sender',sender));if(m.question)bubble.append(el('p','question',m.question));if(m.text)bubble.append(el('p','',m.text));
     if(m.image){bubble.classList.add('media');const i=image(m.image,'','写真');i.onclick=()=>showModal(image(m.image,'','写真'));bubble.append(i);}
     if(m.video){bubble.classList.add('media');const v=el('video');v.controls=true;v.preload='none';v.src=localURL(m.video);if(m.poster)v.poster=localURL(m.poster);bubble.append(v);}
     if(!m.text&&!m.image&&!m.video)bubble.append(el('p','',m.deleted?'削除されたメッセージ':'添付ファイル未保存'));
-    const meta=el('div','message-meta');meta.append(el('time','',m.date.slice(11,16)),favorite('message:'+r.id+':'+m.id));row.append(bubble,meta);return row;
+    const meta=el('div','message-meta');meta.append(el('time','',m.date.slice(11,16)),favorite('message:'+r.id+':'+m.id));if(outgoing)row.append(meta,bubble);else row.append(bubble,meta);return row;
   }
   function renderMessages(latest=false){
     const target=main.querySelector('.conversation');if(!target)return;stopPlayback();target.replaceChildren();const list=filtered();target.classList.toggle('media-grid',mode==='media');target.onscroll=null;

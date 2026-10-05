@@ -204,6 +204,7 @@ def generate(root, progress=lambda **kw: None, cancel=None):
         profiles = {o.get('user', {}).get('user_id'): o.get('user', {}) for o in oshis}
         rooms, people, all_messages = [], {}, {}
         room_metadata = read_json(data / 'metadata/rooms.json', [])
+        account_id = (read_json(data / 'account_identity.json', {}) or {}).get('user_id', '')
         starts = {s['user_id']: datetime.fromtimestamp(int(s.get('start_time', {}).get('seconds', 0)), JST).date() for s in read_json(data / 'metadata/subscriptions.json', []) if s.get('start_time', {}).get('seconds')}
         for room in room_metadata:
             check_cancel(cancel)
@@ -224,27 +225,39 @@ def generate(root, progress=lambda **kw: None, cancel=None):
                 mid = value['chat_message_id']
                 stamp = value.get('time_jst', '')
                 day, month = stamp[:10] or '日期未設定', stamp[:7] or '日期未設定'
+                # Message.user_id identifies the room owner, not the sender.
+                sender_profile = value.get('user_profile') or {}
+                sender_id = sender_profile.get('user_id', '')
+                outgoing = bool(account_id and sender_id == account_id)
+                sender = 'あなた' if outgoing else sender_profile.get('display_name') or ('送信者' if sender_id and sender_id != uid else name)
+                sender_avatar = avatar if not outgoing and (sender_id == uid or not sender_id and sender == name) else ''
+                if not outgoing and sender_id and sender_id != uid:
+                    sender_url = sender_profile.get('avatar_url')
+                    if sender_url and sender_url in assets:
+                        sender_avatar = link(sender_url, folder / '聊天头像' / (clean_name(sender_id) + suffix(sender_url, '.jpg')))
                 local = {}
                 for key, kind, fallback in [('image_url', '图片', '.jpg'), ('video_url', '视频', '.mp4'), ('video_thumbnail_jpeg_url', '视频封面', '.jpg'), ('video_thumbnail_gif_url', '视频封面', '.gif')]:
                     if value.get(key):
                         local[key] = link(value[key], folder / kind / month / (day + '_' + clean_name(mid) + suffix(value[key], fallback)))
                 msg = {'id': mid, 'date': stamp, 'type': value.get('type', 0), 'text': value.get('content', ''), 'question': value.get('card_content', ''),
+                       'outgoing': outgoing, 'sender': sender, 'senderAvatar': sender_avatar,
                        'image': local.get('image_url', ''), 'video': local.get('video_url', ''), 'poster': local.get('video_thumbnail_jpeg_url', ''), 'videoId': value.get('video_id', ''), 'deleted': value.get('deleted', False)}
                 messages.append(msg)
-                md.append('\n## ' + stamp + '\n\n' + msg['text'] + '\n')
+                sender_label = '我' if outgoing else sender
+                md.append('\n## ' + stamp + ' · ' + sender_label + '\n\n' + msg['text'] + '\n')
                 if msg['question']:
                     md.append('\n提问：' + msg['question'] + '\n')
                 for field in ('image', 'video'):
                     if msg[field]:
                         relative = Path(msg[field]).relative_to(folder).as_posix()
                         md.append(f'\n[{"图片" if field == "image" else "视频"}]({relative})\n')
-                csv_rows.append((stamp, mid, msg['type'], msg['text'], msg['question'], msg['image'], msg['video']))
+                csv_rows.append((stamp, mid, msg['type'], msg['text'], msg['question'], msg['image'], msg['video'], sender_label, '发出' if outgoing else '收到'))
             text(folder / '聊天记录.md', ''.join(md))
             text(folder / '聊天记录.jsonl', ''.join(json.dumps(m, ensure_ascii=False) + '\n' for m in messages))
             csvfile = root / folder / '聊天记录.csv'
             with csvfile.open('w', encoding='utf-8-sig', newline='') as stream:
                 writer = csv.writer(stream)
-                writer.writerow(('时间_JST', '消息ID', '类型', '正文', '问题', '图片路径', '视频路径'))
+                writer.writerow(('时间_JST', '消息ID', '类型', '正文', '问题', '图片路径', '视频路径', '发送方', '方向'))
                 # Prevent spreadsheet formula execution from exported message content.
                 writer.writerows(tuple("'" + str(v) if str(v).startswith(('=', '+', '-', '@')) else v for v in row) for row in csv_rows)
             owned.add(csvfile.relative_to(root).as_posix())

@@ -4,3 +4,4 @@
 @media(max-width:700px){.brand b{font-size:23px}.mobile-filter{display:block;max-width:160px}.profile-grid{grid-template-columns:1fr}.profile-bg{height:auto}.modal-bar{top:-8px}.view-header h2{font-size:22px}}
 
 @media(min-width:701px){.people-toolbar{display:none}}
+.message-row.outgoing{justify-content:flex-end}.message-row.outgoing .bubble{background:#ffe7ef;border-radius:15px 0 15px 15px}.message-sender{font-size:11px;color:#96979f;margin-bottom:5px}
