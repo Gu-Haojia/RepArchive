@@ -428,7 +428,7 @@ class Exporter:
             if not user.user_id:
                 raise ValueError('未能确认当前账号身份，请检查登录会话。')
             identity_path = self.output / 'account_identity.json'
-            if identity_path.exists() and json.loads(identity_path.read_text())['user_id'] != user.user_id:
+            if identity_path.exists() and json.loads(identity_path.read_text(encoding='utf-8'))['user_id'] != user.user_id:
                 raise ValueError('当前登录会话属于另一个账号；请使用原账号或新的输出目录。')
             identity = {'user_id': user.user_id, 'unique_id': user.unique_id, 'display_name': user.display_name}
             json_write(identity_path, identity)
@@ -483,7 +483,7 @@ def save_session(token):
     secret.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(secret.parent, 0o700)
     fd = os.open(secret, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, 'w') as file:
+    with os.fdopen(fd, 'w', encoding='utf-8') as file:
         file.write(token)
     os.chmod(secret, 0o600)
 
@@ -572,7 +572,7 @@ def make_server(port, output, phone_client=None, export_fn=None):
                     if self.path == '/phone/login':
                         result = phone_client.login(values.get('code', [''])[0])
                         identity_path = Path(output) / 'account_identity.json'
-                        if identity_path.exists() and json.loads(identity_path.read_text())['user_id'] != result.user.user_id:
+                        if identity_path.exists() and json.loads(identity_path.read_text(encoding='utf-8'))['user_id'] != result.user.user_id:
                             raise ValueError('此手机号属于另一个账号，请使用原账号绑定的手机号。')
                         token = result.refresh_token
                     else:
@@ -627,7 +627,7 @@ def main():
     if args.token_file:
         from archive_site import export
         export(token_from_bytes(args.token_file.read_bytes()), args.output, update)
-        report = json.loads((args.output / '_data/report.json').read_text())
+        report = json.loads((args.output / '_data/report.json').read_text(encoding='utf-8'))
         return 0 if report.get('accessible_content_complete') else 1
     from webui import serve as serve_control
     serve_control(args.port, args.output, resume=args.resume)

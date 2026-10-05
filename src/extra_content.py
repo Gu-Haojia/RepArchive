@@ -71,19 +71,19 @@ class ExtraContent:
             return []
 
     def run(self):
-        user_id = json.loads((self.output / 'account_identity.json').read_text())['user_id']
+        user_id = json.loads((self.output / 'account_identity.json').read_text(encoding='utf-8'))['user_id']
         subscriptions = self.call_pages('UserService', 'ListMembershipPlanSubscriptions',
             pb.ListMembershipPlanSubscriptionsRequest(max_page_size=100), pb.ListMembershipPlanSubscriptionsResponse,
             'subscriptions', 'subscriptions')
         self.json_write(self.output / 'metadata/subscriptions.json', [self.to_dict(x) for x in subscriptions])
-        rooms = json.loads((self.output / 'metadata/rooms.json').read_text())
+        rooms = json.loads((self.output / 'metadata/rooms.json').read_text(encoding='utf-8'))
         room_users = {room['user_id'] for room in rooms}
         active_users = {s.user_id for s in subscriptions if not s.expired}
         self.report['active_subscription_count'] = len(active_users)
         self.report['subscription_rooms_match'] = active_users == room_users
         if active_users != room_users:
             self.errors.append({'stage': 'subscription_match', 'error': '有效订阅作者与聊天房间列表不一致，完整性未确认。'})
-        oshis = json.loads((self.output / 'metadata/ListMyOshis.json').read_text())
+        oshis = json.loads((self.output / 'metadata/ListMyOshis.json').read_text(encoding='utf-8'))
         for oshi in oshis:
             self.call_pages('LiveService', 'ListOshiVideos',
                 pb.ListOshiVideosRequest(oshi_id=oshi['oshi_id'], max_page_size=100),

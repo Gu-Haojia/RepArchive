@@ -31,7 +31,7 @@ class CallbackBridge:
         if not self.status()['supported']:
             return False
         try:
-            installed = json.loads(self.marker.read_text())
+            installed = json.loads(self.marker.read_text(encoding='utf-8'))
             ready = (installed.get('platform') == sys.platform and Path(installed.get('path', '')).exists()
                      and installed.get('runtime') == str(Path(sys.executable).absolute())
                      and installed.get('script') == str(Path(__file__).resolve())
@@ -68,7 +68,7 @@ class CallbackBridge:
     def write_private(path, value):
         # These files contain only the temporary local callback capability.
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, 'w') as stream:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             json.dump(value, stream)
         os.chmod(path, 0o600)
 
@@ -84,7 +84,7 @@ class CallbackBridge:
             def literal(value):
                 return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
             command = ' & " " & '.join('quoted form of ' + literal(a) for a in args)
-            source.write_text('on open location callbackURL\n  do shell script ' + command + ' & " --callback " & quoted form of callbackURL\nend open location\n')
+            source.write_text('on open location callbackURL\n  do shell script ' + command + ' & " --callback " & quoted form of callbackURL\nend open location\n', encoding='utf-8')
             result = subprocess.run(['/usr/bin/osacompile', '-o', str(bundle), str(source)], capture_output=True, timeout=30)
             source.unlink(missing_ok=True)
             if result.returncode:
@@ -115,7 +115,7 @@ class CallbackBridge:
             def desktop_arg(value):
                 return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%') + '"'
             bundle.write_text('[Desktop Entry]\nType=Application\nName=RepArchive Login\nNoDisplay=true\nTerminal=false\nExec=' +
-                              ' '.join(map(desktop_arg, args)) + ' --callback %u\nMimeType=' + ''.join('x-scheme-handler/'+s+';' for s in SCHEMES) + '\n')
+                              ' '.join(map(desktop_arg, args)) + ' --callback %u\nMimeType=' + ''.join('x-scheme-handler/'+s+';' for s in SCHEMES) + '\n', encoding='utf-8')
             if register:
                 applications = Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share'))/'applications'
                 applications.mkdir(parents=True, exist_ok=True)
@@ -132,7 +132,7 @@ def forward(config, callback):
     parsed = urlsplit(callback)
     if parsed.scheme not in SCHEMES or len(callback) > 16384:
         raise ValueError('回调地址格式不正确。')
-    values = json.loads(Path(config).read_text())
+    values = json.loads(Path(config).read_text(encoding='utf-8'))
     target = urlsplit(values['url'])
     if target.scheme != 'http' or target.hostname != '127.0.0.1' or target.path != '/api/auth/sns-finish' or target.username or target.password or target.query or target.fragment:
         raise ValueError('回调控制台地址不正确。')

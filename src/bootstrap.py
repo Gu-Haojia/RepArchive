@@ -26,9 +26,9 @@ def setup():
     requirements = (ROOT / 'requirements.txt').read_bytes()
     stamp = ROOT / '.venv/replive-requirements.sha256'
     digest = hashlib.sha256(requirements).hexdigest()
-    if not stamp.exists() or stamp.read_text() != digest:
+    if not stamp.exists() or stamp.read_text(encoding='ascii') != digest:
         subprocess.run([str(runtime), '-m', 'pip', 'install', '-r', str(ROOT / 'requirements.txt')], check=True)
-        stamp.write_text(digest)
+        stamp.write_text(digest, encoding='ascii')
     generated = SOURCE / 'generated'
     generated.mkdir(exist_ok=True)
     sources = sorted((SOURCE / 'protocols').glob('*.proto'))

@@ -140,7 +140,7 @@ class Controller:
 
     def store_token(self, token, user):
         fd = os.open(self.token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, 'w') as stream:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(token)
         os.chmod(self.token_path, 0o600)
         self.account = {'user_id': user.user_id, 'display_name': user.display_name}
