@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Install project-local runtime, generate protocol bindings, then launch controller."""
+if __name__ == '__main__':
+    print('正在启动 RepArchive，请稍候...', flush=True)
+
 import argparse
 import hashlib
 import json
